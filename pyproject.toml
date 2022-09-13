@@ -12,9 +12,9 @@ python = "^3.7"
 tqdm = "^4.62.3"
 char = "^0.1.2"
 mpire = "^2.3.3"
-ipywidgets = "^7.6.5"
 boto3 = "^1.24.71"
 python-dotenv = "^0.21.0"
+webencodings = "^0.5.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
