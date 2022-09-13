@@ -188,7 +188,7 @@ class BinanceDataDumper():
         dict_files_deleted_by_ticker = defaultdict(int)
         tickers = self.get_all_tickers_with_data(
             timeperiod_per_file="daily")
-        for ticker in tqdm(tickers, leave=False):
+        for ticker in tqdm(tickers, leave=False) if self._multi_threading else tickers :
             list_saved_months_dates = self.get_all_dates_with_data_for_ticker(
                 ticker,
                 timeperiod_per_file="monthly"
@@ -273,7 +273,7 @@ class BinanceDataDumper():
         LOGGER.info("---> End Date: %s", date_end.strftime("%Y%m%d"))
         date_end_first_day_of_month = datetime.date(
             year=date_end.year, month=date_end.month, day=1)
-        for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers"):
+        for ticker in tqdm(list_trading_pairs, leave=True, desc="Tickers") if self._multi_threading else list_trading_pairs :
             # 1) Download all monthly data
             self._download_data_for_1_ticker(
                 ticker,
