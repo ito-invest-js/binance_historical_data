@@ -18,6 +18,8 @@ from mpire import WorkerPool
 
 # Local imports
 
+from .s3_writer import S3DataWriter
+
 # Global constants
 LOGGER = logging.getLogger(__name__)
 
@@ -62,6 +64,8 @@ class BinanceDataDumper():
         self._data_frequency = data_frequency
         self._asset_class = asset_class
         self._data_type = data_type
+        if path_dir_where_to_dump[0:2] == "s3":
+            self.writer = S3DataWriter(path_dir_where_to_dump)
 
     def get_list_all_trading_pairs(self):
         """Get all trading pairs available at binance now"""
@@ -208,7 +212,10 @@ class BinanceDataDumper():
                     extension="csv",
                 )
                 try:
-                    os.remove(os.path.join(str_folder, str_filename))
+                    if str_folder[0:2] == "s3" :
+                        self.writer.delete(os.path.join(str_folder, str_filename))
+                    else :
+                        os.remove(os.path.join(str_folder, str_filename))
                     dict_files_deleted_by_ticker[ticker] += 1
                 except Exception:
                     LOGGER.warning(
@@ -325,11 +332,14 @@ class BinanceDataDumper():
             ticker,
             timeperiod_per_file=timeperiod_per_file,
         )
-        if not os.path.exists(str_dir_where_to_save):
-            try:
-                os.makedirs(str_dir_where_to_save)
-            except FileExistsError:
-                pass
+        if str_dir_where_to_save[0:2] == "s3" :
+            self.writer.create_dir(str_dir_where_to_save)
+        else :
+            if not os.path.exists(str_dir_where_to_save):
+                try:
+                    os.makedirs(str_dir_where_to_save)
+                except FileExistsError:
+                    pass
         #####
         threads = min(len(list_args), 60)
         with WorkerPool(n_jobs=threads, start_method="threading") as pool:
@@ -381,15 +391,21 @@ class BinanceDataDumper():
             return None
         # 4) Extract zip archive
         try:
-            with zipfile.ZipFile(path_zip_raw_file, 'r') as zip_ref:
-                zip_ref.extractall(os.path.dirname(path_zip_raw_file))
+            if path_zip_raw_file[0:2] == "s3" :
+                pass
+            else :
+                with zipfile.ZipFile(path_zip_raw_file, 'r') as zip_ref:
+                    zip_ref.extractall(os.path.dirname(path_zip_raw_file))
         except Exception as ex:
             LOGGER.warning(
                 "Unable to unzip file %s with error: %s", path_zip_raw_file, ex)
             return None
         # 5) Delete the zip archive
         try:
-            os.remove(path_zip_raw_file)
+            if path_zip_raw_file[0:2] == "s3" :
+                pass
+            else :
+                os.remove(path_zip_raw_file)
         except Exception as ex:
             LOGGER.warning(
                 "Unable to delete zip file %s with error: %s",
@@ -428,14 +444,17 @@ class BinanceDataDumper():
             raise NotImplemented("Sorry, futures are not supported yet!!!")
         return folder_path
 
-    @staticmethod
-    def _download_raw_file(str_url_path_to_file, str_path_where_to_save):
+    def _download_raw_file(self, str_url_path_to_file, str_path_where_to_save):
         """Download file from binance server by URL"""
         LOGGER.debug("Download file from: %s", str_url_path_to_file)
         str_url_path_to_file = str_url_path_to_file.replace("\\", "/")
         try:
-            urllib.request.urlretrieve(
-                str_url_path_to_file, str_path_where_to_save)
+            if str_path_where_to_save[0:2] == "s3" :
+                self.writer.urlretrieve(
+                    str_url_path_to_file, str_path_where_to_save)
+            else :
+                urllib.request.urlretrieve(
+                    str_url_path_to_file, str_path_where_to_save)
         except urllib.error.URLError as ex:
             LOGGER.debug(
                 "[WARNING] File not found: %s", str_url_path_to_file)

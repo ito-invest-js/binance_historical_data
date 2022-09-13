@@ -1,6 +1,6 @@
 # My ignore
 jupyter_notebooks/*
-
+.env
 
 # Temporary and binary files
 *~
