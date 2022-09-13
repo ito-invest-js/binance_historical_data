@@ -27,6 +27,7 @@ def test_s3_init():
         path_dir_where_to_dump="s3://azel-labs-market-data/data-dumper",
         data_type="klines",  # aggTrades, klines, trades
         data_frequency="1m",  # argument for data_type="klines"
+        multi_threading=False,
     )
     
     data_dumper.dump_data(

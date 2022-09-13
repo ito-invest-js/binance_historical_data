@@ -14,10 +14,8 @@ from dateutil.relativedelta import relativedelta
 # Third party imports
 from tqdm.auto import tqdm
 from char import char
-from mpire import WorkerPool
 
 # Local imports
-
 from .s3_writer import S3DataWriter
 
 # Global constants
@@ -38,6 +36,7 @@ class BinanceDataDumper():
             asset_class="spot",  # spot, futures
             data_type="klines",  # aggTrades, klines, trades
             data_frequency="1m",  # argument for data_type="klines"
+            multi_threading=True
     ) -> None:
         """Init object to dump all data from binance servers
 
@@ -64,6 +63,7 @@ class BinanceDataDumper():
         self._data_frequency = data_frequency
         self._asset_class = asset_class
         self._data_type = data_type
+        self._multi_threading = multi_threading
         if path_dir_where_to_dump[0:2] == "s3":
             self.writer = S3DataWriter(path_dir_where_to_dump)
 
@@ -323,10 +323,7 @@ class BinanceDataDumper():
                 if date_obj not in list_dates_with_data
             ]
         LOGGER.debug("Dates to get data: %d", len(list_dates_cleared))
-        list_args = [
-            (ticker, date_obj, timeperiod_per_file)
-            for date_obj in list_dates_cleared
-        ]
+        
         # 2) Create path to file where to save data
         str_dir_where_to_save = self.get_local_dir_to_data(
             ticker,
@@ -341,17 +338,36 @@ class BinanceDataDumper():
                 except FileExistsError:
                     pass
         #####
-        threads = min(len(list_args), 60)
-        with WorkerPool(n_jobs=threads, start_method="threading") as pool:
-            list_saved_dates = list(tqdm(
-                pool.imap_unordered(
-                    self._download_data_for_1_ticker_1_date,
-                    list_args
-                ),
-                leave=False,
-                total=len(list_args),
-                desc=f"{timeperiod_per_file} files to download"
-            ))
+        if self._multi_threading :
+            from mpire import WorkerPool
+            
+            list_args = [
+                (ticker, date_obj, timeperiod_per_file)
+                for date_obj in list_dates_cleared
+            ]
+            
+            threads = min(len(list_args), 60)
+            
+            with WorkerPool(n_jobs=threads, start_method="threading") as pool:
+                list_saved_dates = list(tqdm(
+                    pool.imap_unordered(
+                        self._download_data_for_1_ticker_1_date,
+                        list_args
+                    ),
+                    leave=False,
+                    total=len(list_args),
+                    desc=f"{timeperiod_per_file} files to download"
+                ))
+        else :
+            list_saved_dates = []
+            for date_obj in list_dates_cleared :
+                save_date = self._download_data_for_1_ticker_1_date(
+                    ticker,
+                    date_obj,
+                    timeperiod_per_file
+                )
+                list_saved_dates.append(save_date)
+        
         #####
         list_saved_dates = [date for date in list_saved_dates if date]
         LOGGER.debug(
